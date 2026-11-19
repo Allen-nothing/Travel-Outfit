@@ -78,6 +78,11 @@ main{position:relative;z-index:1}
 .bolt{animation:flick 5s infinite;opacity:0}
 @media (prefers-reduced-motion:reduce){#bg *{animation:none!important}}
 @media print{#bg{display:none}}
+.mapcard{padding:0;overflow:hidden;margin-bottom:12px}
+.mapcard iframe{width:100%;height:300px;border:0;display:block}
+.maplinks{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 16px;font-size:.88rem;color:var(--mute)}
+.maplinks a{color:var(--accent)}
+@media print{.mapcard{display:none}}
 </style>
 </head>
 <body>
@@ -287,8 +292,11 @@ function render(p,days){last={p,days};setBg(dominant(days));
   const list=(a,si)=>a.length?`<ul>${a.map(([k,v])=>`<li><label class="ck"><input type="checkbox" data-k="${si}:${esc(k)}"${saved[si+':'+k]?' checked':''}><span>${esc(k)}</span></label><b>${v}</b></li>`).join('')}</ul>`:'<p class="note">這趟用不到</p>';
   const GL={n:'',m:'｜男裝',f:'｜女裝'},AL={tour:'觀光休閒',hike:'登山健行',biz:'商務出差',beach:'海灘度假'};
   const hist=days.filter(d=>d.src!=='預報').length;
+  const la=+p.latitude,lo=+p.longitude,bbox=[lo-.12,la-.07,lo+.12,la+.07].join(',');
+  const mapHtml=`<div class="card mapcard"><iframe title="${esc(label(p))} 地圖" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${la}%2C${lo}"></iframe><div class="maplinks"><span>座標 ${la.toFixed(3)}, ${lo.toFixed(3)}${p.elevation!=null?'｜海拔 '+Math.round(p.elevation)+' 公尺':''}</span><a href="https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=12/${la}/${lo}" target="_blank" rel="noopener">在 OpenStreetMap 開啟</a><a href="https://www.google.com/maps/search/?api=1&query=${la},${lo}" target="_blank" rel="noopener">在 Google 地圖開啟</a></div></div>`;
   $('#out').innerHTML=`
   <h2>${esc(label(p))}｜${days[0].date} 起共 ${n} 天｜${AL[act]}${GL[g]}</h2>
+  ${mapHtml}
   <div class="card"><div class="strip" aria-label="每日最高與最低氣溫">${strip}</div></div>
   <h2>每日穿搭</h2>
   <div class="card table"><table><thead><tr><th>日期</th><th>天氣</th><th>建議穿搭</th></tr></thead><tbody>${rows}</tbody></table></div>
