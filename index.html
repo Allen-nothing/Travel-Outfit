@@ -121,10 +121,16 @@ async function geo(name){
   const all=(await r.json()).results||[],ok=all.filter(x=>!/^(AIR|HLP)/.test(x.feature_code||''));
   return ok.length?ok:all;
 }
+const TWK=new Set(['台北','新北','桃園','台中','台南','高雄','新竹','基隆','嘉義','宜蘭','花蓮','台東','墾丁','阿里山','日月潭','澎湖','金門','屏東','苗栗','彰化','南投','雲林']);
 async function searchPlaces(raw){
   const q=raw.replace(/臺/g,'台').replace(/\s+/g,' ').trim(),bare=q.replace(/[市縣县]$/,'');
-  const cand=[...new Set([q,ALIAS[q],ALIAS[bare],bare,simp(q),simp(bare)].filter(Boolean))];
-  for(const c of cand){const r=await geo(c);if(r.length)return r}
+  const cand=[...new Set([ALIAS[q],ALIAS[bare],q,bare,simp(q),simp(bare)].filter(Boolean))];
+  const isTW=TWK.has(bare);
+  for(const c of cand){
+    let r=await geo(c);
+    if(isTW){const tw=r.filter(x=>x.country_code==='TW');r=tw}
+    if(r.length)return r;
+  }
   return [];
 }
 $('#f').addEventListener('submit',async e=>{
