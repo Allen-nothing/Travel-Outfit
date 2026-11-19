@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>穿搭行李規劃｜依目的地天氣自動搭配</title>
+<style>
+:root{--bg:#f3f6f9;--card:#fff;--ink:#14232f;--mute:#5d6e7b;--line:#d8e0e7;--accent:#1f5f8b;--accent-ink:#fff;--warn:#b4531c}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1a22;--card:#16252f;--ink:#e6eef4;--mute:#93a5b3;--line:#294050;--accent:#6bb4e3;--accent-ink:#06141d;--warn:#f0a36b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+main{max-width:880px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:1.7rem;margin:0 0 4px;letter-spacing:.02em}
+.sub{color:var(--mute);margin:0 0 22px}
+h2{font-size:1.15rem;margin:30px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+form{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end}form label:first-child{grid-column:span 2}form button{grid-column:span 2}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mute);gap:4px}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-width:0}
+button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:var(--accent-ink);font-weight:600}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{background:transparent;color:var(--ink);border:1px solid var(--line);padding:6px 12px;font-weight:400}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+#msg{margin-top:12px;color:var(--warn);min-height:1.2em}
+.strip{display:flex;gap:6px;align-items:flex-end;height:190px;overflow-x:auto;padding-bottom:4px}
+.col{flex:1 0 54px;display:flex;flex-direction:column;align-items:center;font-size:.78rem;height:100%}
+.col .track{flex:1;width:100%;position:relative}
+.col .bar{position:absolute;left:18%;right:18%;border-radius:6px}
+.col .t{color:var(--mute)}
+.table{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:.92rem}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:500;font-size:.82rem}
+.tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:99px;border:1px solid var(--line);color:var(--mute);margin-left:4px}
+.pack{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.pack h3{margin:0 0 6px;font-size:1rem}
+.pack ul{list-style:none;margin:0;padding:0}
+.pack li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.pack li:last-child{border:0}
+.pack b{white-space:nowrap}
+.note{color:var(--mute);font-size:.88rem;margin-top:10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.ck{display:flex;align-items:center;gap:8px;cursor:pointer}
+.ck input{width:18px;height:18px;accent-color:var(--accent);padding:0}
+.ck input:checked+span{text-decoration:line-through;color:var(--mute)}
+@media (max-width:640px){form{grid-template-columns:1fr 1fr}form label:first-child,form button{grid-column:1/-1}}
+@media print{:root{--bg:#fff;--card:#fff;--ink:#000;--mute:#444;--line:#bbb}form,#chips,#msg,.toolbar,.sub{display:none}.strip,.table{overflow:visible}.card{break-inside:avoid}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<main>
+<h1>穿搭行李規劃</h1>
+<p class="sub">輸入目的地、出發日期與停留天數，依當地天氣預報（或去年同期氣候）建議每日穿搭與行李數量。</p>
+
+<form class="card" id="f">
+  <label>目的地（全球城市，中英文皆可）<input id="q" required placeholder="例：東京、Reykjavik、Singapore"></label>
+  <label>出發日期<input id="d" type="date" required></label>
+  <label>停留天數<input id="n" type="number" min="1" max="30" value="5" required></label>
+  <label>穿搭風格<select id="g"><option value="n">不指定</option><option value="m">男裝</option><option value="f">女裝</option></select></label>
+  <label>行程類型<select id="a"><option value="tour">觀光休閒</option><option value="hike">登山健行</option><option value="biz">商務出差</option><option value="beach">海灘度假</option></select></label>
+  <button type="submit">產生建議</button>
+</form>
+<div id="chips" class="chips" role="group" aria-label="地點搜尋結果"></div>
+<div id="msg" role="status"></div>
+<div id="out"></div>
+
+<p class="note">天氣資料來自 Open-Meteo。預報涵蓋未來約 7 天；更遠的日期以去年同期的實際天氣作參考，準確度較低。</p>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const iso=d=>d.toISOString().slice(0,10);
+const addDays=(s,n)=>{const d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return iso(d)};
+const prevYear=s=>{const d=new Date(s+'T00:00:00Z');d.setUTCFullYear(d.getUTCFullYear()-1);return iso(d)};
+const todayStr=(()=>{const t=new Date();return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`})();
+$('#d').min=todayStr;$('#d').value=addDays(todayStr,7);
+let places=[],picked=0;
+
+$('#f').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const msg=$('#msg');msg.textContent='搜尋地點中…';$('#out').innerHTML='';
+  try{
+    const r=await fetch('https://geocoding-api.open-meteo.com/v1/search?count=5&format=json&language=zh&name='+encodeURIComponent($('#q').value.trim()));
+    const j=await r.json();places=j.results||[];
+    if(!places.length){$('#chips').innerHTML='';msg.textContent='找不到這個地點，請試試城市的英文名稱或加上國家。';return}
+    picked=0;renderChips();await plan();
+  }catch(err){msg.textContent='無法連線到天氣服務，請檢查網路後再試。'}
+});
+
+function renderChips(){
+  $('#chips').innerHTML=places.length>1?places.map((p,i)=>`<button type="button" class="chip" data-i="${i}" aria-pressed="${i===picked}">${esc(label(p))}</button>`).join(''):'';
+  document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{picked=+b.dataset.i;renderChips();plan()});
+}
+const label=p=>[p.name,p.admin1,p.country].filter((v,i,a)=>v&&a.indexOf(v)===i).join('，');
+
+const DAILY='temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,wind_speed_10m_max,weather_code';
+async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status);return r.json()}
+
+async function plan(){
+  const p=places[picked],msg=$('#msg');msg.textContent='取得天氣資料中…';
+  const start=$('#d').value,n=Math.max(1,Math.min(30,+$('#n').value||1));
+  const dates=Array.from({length:n},(_,i)=>addDays(start,i));
+  const limit=addDays(todayStr,6);
+  const fc=dates.filter(d=>d<=limit),hist=dates.filter(d=>d>limit);
+  const days=[];
+  try{
+    const base=`latitude=${p.latitude}&longitude=${p.longitude}&timezone=auto&daily=`;
+    if(fc.length){
+      const j=await getJSON(`https://api.open-meteo.com/v1/forecast?${base}${DAILY},precipitation_probability_max,uv_index_max&start_date=${fc[0]}&end_date=${fc[fc.length-1]}`);
+      fc.forEach((d,i)=>days.push(row(d,j.daily,i,'預報')));
+    }
+    if(hist.length){
+      const j=await getJSON(`https://archive-api.open-meteo.com/v1/archive?${base}${DAILY}&start_date=${prevYear(hist[0])}&end_date=${prevYear(hist[hist.length-1])}`);
+      hist.forEach((d,i)=>days.push(row(d,j.daily,i,'去年同期')));
+    }
+    msg.textContent='';render(p,days);
+  }catch(err){msg.textContent='天氣資料取得失敗，請稍後再試。'}
+}
+function row(date,D,i,src){
+  const g=k=>D[k]?D[k][i]:null;
+  const pop=g('precipitation_probability_max'),pr=g('precipitation_sum')||0;
+  return{date,src,tmax:g('temperature_2m_max'),tmin:g('temperature_2m_min'),fmax:g('apparent_temperature_max'),fmin:g('apparent_temperature_min'),
+    pop,precip:pr,wind:g('wind_speed_10m_max')||0,uv:g('uv_index_max'),code:g('weather_code'),
+    rain:(pop!=null?pop>=50:false)||pr>=(pop!=null?3:2)};
+}
+const icon=c=>c==null?'':c===0?'☀️':c<=2?'🌤️':c===3?'☁️':c<=48?'🌫️':c<=67?'🌧️':c<=77?'❄️':c<=82?'🌦️':c<=86?'❄️':'⛈️';
+const lvl=t=>t>=30?'hot':t>=24?'warm':t>=18?'mild':t>=12?'cool':t>=5?'cold':'freeze';
+const LV={hot:'炎熱',warm:'溫暖',mild:'舒適',cool:'微涼',cold:'寒冷',freeze:'嚴寒'};
+function outfit(L){
+  const g=$('#g').value,act=$('#a').value,sk=g==='f'?'／裙':'';
+  if(act==='hike')return {hot:'速乾短袖＋快乾短褲，戴帽',warm:'速乾短袖＋快乾長褲',mild:'速乾長袖＋輕量防風外套',cool:'速乾長袖＋刷毛層＋防風防水外套',cold:'發熱衣＋刷毛層＋防水硬殼外套',freeze:'發熱衣＋刷毛＋羽絨＋硬殼外套，手套毛帽'}[L]+'；避免純棉';
+  if(act==='biz')return {hot:'透氣襯衫＋西裝褲'+sk+'，西裝外套備用',warm:'襯衫＋西裝褲'+sk+'，外套可脫',mild:'襯衫＋西裝外套',cool:'襯衫＋針織衫＋西裝外套',cold:'襯衫＋毛衣＋西裝外套＋大衣',freeze:'發熱衣＋襯衫＋毛衣＋大衣，圍巾手套'}[L];
+  if(act==='beach'&&(L==='hot'||L==='warm'))return '泳衣外加輕薄罩衫＋短褲'+sk+'，沙灘拖鞋';
+  return {hot:g==='f'?'透氣短袖＋短褲／薄裙或洋裝，戴帽防曬':'透氣短袖＋短褲，戴帽防曬',warm:'短袖＋短褲或薄長褲',mild:'短袖或薄長袖＋輕薄外套備用',cool:'長袖＋針織衫／衛衣，帶薄外套',cold:'保暖內層＋毛衣＋厚外套，長褲',freeze:'發熱衣＋毛衣＋羽絨外套，手套、圍巾、毛帽'}[L];
+}
+const col=t=>`hsl(${Math.max(0,Math.min(1,(40-t)/55))*215},70%,52%)`;
+const r0=x=>Math.round(x);
+
+let last=null;
+function render(p,days){last={p,days};
+  const tmin=Math.min(...days.map(d=>d.tmin)),tmax=Math.max(...days.map(d=>d.tmax));
+  const span=Math.max(1,tmax-tmin);
+  const strip=days.map(d=>{
+    const top=(tmax-d.tmax)/span*100,h=Math.max(6,(d.tmax-d.tmin)/span*100);
+    return `<div class="col"><span>${r0(d.tmax)}°</span><div class="track"><div class="bar" style="top:${top}%;height:${h}%;background:linear-gradient(${col(d.tmax)},${col(d.tmin)})"></div></div><span>${r0(d.tmin)}°</span><span class="t">${d.date.slice(5)}</span><span>${icon(d.code)}</span></div>`}).join('');
+  const rows=days.map(d=>{
+    const L=lvl(d.fmax),extra=[];
+    if(d.fmax-d.fmin>=10)extra.push('早晚溫差大，採洋蔥式穿法');
+    if(d.rain)extra.push('帶雨傘／防水外套');
+    if(d.wind>=30)extra.push('風大，加防風外套');
+    if(d.uv!=null&&d.uv>=6||L==='hot')extra.push('防曬＋太陽眼鏡');
+    return `<tr><td>${d.date.slice(5)}<span class="tag">${d.src}</span></td><td>${icon(d.code)} ${r0(d.tmin)}–${r0(d.tmax)}°C<br><span class="t" style="color:var(--mute)">體感 ${r0(d.fmin)}–${r0(d.fmax)}°C${d.pop!=null?'，降雨機率 '+d.pop+'%':d.rain?'，可能下雨':''}</span></td><td>${LV[L]}：${outfit(L)}${extra.length?'<br><span style="color:var(--mute)">'+extra.join('；')+'</span>':''}</td></tr>`}).join('');
+
+  // packing quantities
+  const g=$('#g').value,act=$('#a').value;
+  const n=days.length,cnt={};days.forEach(d=>{const L=lvl(d.fmax);cnt[L]=(cnt[L]||0)+1});
+  const c=k=>cnt[k]||0,scale=n>7?7/n:1,sc=x=>x?Math.max(1,Math.ceil(x*scale)):0;
+  const hotDays=c('hot')+c('warm'),mildDays=c('mild'),coolDays=c('cool')+c('cold')+c('freeze');
+  const anyRain=days.some(d=>d.rain),rainDays=days.filter(d=>d.rain).length;
+  const minF=Math.min(...days.map(d=>d.fmin)),maxF=Math.max(...days.map(d=>d.fmax));
+  const anySun=days.some(d=>d.uv!=null&&d.uv>=6||d.fmax>=28)||act==='beach',windy=days.some(d=>d.wind>=30);
+  const dry=act==='hike'?'速乾':'';
+  let tops=[],bottoms=[],layers=[],acc=[];
+  const shortTop=hotDays?sc(hotDays+Math.ceil(mildDays/2)):sc(Math.ceil(mildDays/2));
+  if(shortTop)tops.push([dry+'短袖上衣',shortTop+'件']);
+  if(mildDays||coolDays)tops.push([dry+'長袖上衣',Math.max(1,sc(mildDays-Math.ceil(mildDays/2)+c('cool')))+'件']);
+  if(c('cold')+c('freeze'))tops.push(['發熱衣／保暖內層',Math.min(Math.ceil((c('cold')+c('freeze'))*scale),4)+'件']);
+  const shorts=hotDays?Math.min(Math.ceil(hotDays/2),3):0;
+  const pants=(mildDays+coolDays)?Math.min(Math.max(1,Math.ceil((mildDays+coolDays)/3)),3):(hotDays&&minF<22?1:0);
+  if(shorts)bottoms.push([act==='hike'?'快乾短褲':g==='f'?'短褲／裙子':g==='m'?'短褲':'短褲／裙',shorts+'件']);
+  if(pants)bottoms.push([act==='hike'?'快乾長褲':'長褲',pants+'條']);
+  const u=Math.min(n+1,8);
+  bottoms.push([g==='f'?'內衣褲（含內衣）':'內衣褲',u+'套']);
+  bottoms.push([act==='hike'?'排汗登山襪':'襪子',u+'雙']);
+  if(coolDays)layers.push(['毛衣／衛衣／刷毛',Math.min(Math.ceil(coolDays/3),3)+'件']);
+  if(minF<16&&minF>=8||(mildDays&&!coolDays))layers.push(['輕薄外套','1件']);
+  if(minF<8&&minF>=0||c('cold'))layers.push(['保暖厚外套','1件']);
+  if(minF<0||c('freeze'))layers.push(['羽絨外套（取代厚外套）','1件']);
+  if(windy)layers.push(['防風外套','1件']);
+  if(anyRain)layers.push(['防水外套／雨衣','1件']);
+  if(anyRain)acc.push(['折疊傘','1把']);
+  if(anySun)acc.push(['帽子、太陽眼鏡、防曬乳','各1']);
+  if(minF<5)acc.push(['毛帽、手套、圍巾','各1']);
+  acc.push(['舒適步行鞋','1雙']);
+  if(hotDays&&maxF>=28)acc.push(['涼鞋／拖鞋','1雙']);
+  if(anyRain&&rainDays>=2)acc.push(['防水鞋或備用乾襪','1']);
+  if(act==='hike'){
+    if(!anyRain&&!windy)layers.push(['防風防水外套','1件']);
+    acc=acc.filter(x=>x[0]!=='舒適步行鞋'&&x[0]!=='涼鞋／拖鞋');
+    acc.push([anyRain?'防水登山鞋':'登山鞋／越野跑鞋','1雙'],['背包（20–30L）＋防雨套','1'],['水壺／水袋','1'],['頭燈、登山杖（視路線）','視需要']);
+  }
+  if(act==='biz'){
+    tops=[[g==='f'?'襯衫／上衣':'襯衫／Polo 衫',sc(n)+'件']];
+    if(mildDays||coolDays)tops.push(['針織衫／薄毛衣',Math.min(Math.ceil((mildDays+coolDays)/3),2)+'件']);
+    if(c('cold')+c('freeze'))tops.push(['發熱衣（穿在襯衫內）','2件']);
+    bottoms=bottoms.filter(x=>!/短褲|長褲/.test(x[0]));
+    bottoms.unshift([g==='f'?'西裝褲／裙子／洋裝':'西裝褲',Math.min(Math.max(2,Math.ceil(n/2)),4)+'件']);
+    layers.unshift([g==='f'?'西裝外套（blazer）':'西裝外套','1件']);
+    acc=acc.filter(x=>x[0]!=='舒適步行鞋'&&x[0]!=='涼鞋／拖鞋');
+    acc.push([g==='f'?'低跟正裝鞋':'皮鞋','1雙']);
+    if(g!=='f')acc.push(['領帶、皮帶','各1']);
+    acc.push(['公事包／筆電包','1']);
+  }
+  if(act==='beach'){
+    bottoms.unshift([g==='m'?'泳褲':g==='f'?'泳衣':'泳衣／泳褲',Math.min(Math.max(2,Math.ceil(n/3)),3)+'件']);
+    acc.push(['沙灘巾','1條']);
+    if(!acc.some(x=>x[0]==='涼鞋／拖鞋'))acc.push(['涼鞋／拖鞋','1雙']);
+  }
+  const secs=[['上衣',tops],['下身與貼身衣物',bottoms],['外層',layers],['配件與鞋',acc]];
+  last.secs=secs;
+  const sig=[p.id||p.latitude,days[0].date,n,g,act].join('|');
+  let saved={};try{saved=JSON.parse(localStorage.getItem('pack:'+sig)||'{}')}catch(e){}
+  const list=(a,si)=>a.length?`<ul>${a.map(([k,v])=>`<li><label class="ck"><input type="checkbox" data-k="${si}:${esc(k)}"${saved[si+':'+k]?' checked':''}><span>${esc(k)}</span></label><b>${v}</b></li>`).join('')}</ul>`:'<p class="note">這趟用不到</p>';
+  const GL={n:'',m:'｜男裝',f:'｜女裝'},AL={tour:'觀光休閒',hike:'登山健行',biz:'商務出差',beach:'海灘度假'};
+  const hist=days.filter(d=>d.src!=='預報').length;
+  $('#out').innerHTML=`
+  <h2>${esc(label(p))}｜${days[0].date} 起共 ${n} 天｜${AL[act]}${GL[g]}</h2>
+  <div class="card"><div class="strip" aria-label="每日最高與最低氣溫">${strip}</div></div>
+  <h2>每日穿搭</h2>
+  <div class="card table"><table><thead><tr><th>日期</th><th>天氣</th><th>建議穿搭</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <h2>行李清單與數量 <span id="prog" class="tag"></span></h2>
+  <div class="toolbar">
+    <button type="button" class="chip" id="bPrint">列印／存成 PDF</button>
+    <button type="button" class="chip" id="bTxt">下載文字檔</button>
+    <button type="button" class="chip" id="bCopy">複製清單</button>
+    <button type="button" class="chip" id="bReset">重設打勾</button>
+  </div>
+  <div class="pack">${secs.map(([name,a],si)=>`<div class="card"><h3>${name}</h3>${list(a,si)}</div>`).join('')}</div>
+  <p class="note">${n>7?'超過 7 天，數量已按「中途洗衣一次」估算。':''}${hist?`其中 ${hist} 天為去年同期參考，出發前 7 天內建議再查一次。`:''}${rainDays?` 預計 ${rainDays} 天可能有雨。`:''}</p>`;
+  const boxes=()=>[...document.querySelectorAll('.ck input')];
+  const upd=()=>{$('#prog').textContent=`已打包 ${boxes().filter(i=>i.checked).length} / ${boxes().length}`};
+  const persist=()=>{const o={};boxes().forEach(i=>{if(i.checked)o[i.dataset.k]=1});try{localStorage.setItem('pack:'+sig,JSON.stringify(o))}catch(e){}};
+  boxes().forEach(i=>i.onchange=()=>{persist();upd()});
+  upd();
+  $('#bPrint').onclick=()=>window.print();
+  $('#bTxt').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buildText()],{type:'text/plain;charset=utf-8'}));a.download='packing-list.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+  $('#bCopy').onclick=async()=>{try{await navigator.clipboard.writeText(buildText());$('#msg').textContent='已複製清單'}catch(e){$('#msg').textContent='無法複製，請改用下載文字檔。'}};
+  $('#bReset').onclick=()=>{boxes().forEach(i=>i.checked=false);persist();upd()};
+}
+function buildText(){
+  const {p,days,secs}=last,mark={};
+  document.querySelectorAll('.ck input').forEach(i=>mark[i.dataset.k]=i.checked);
+  let t=`${label(p)}｜${days[0].date} 起 ${days.length} 天\n\n【每日天氣】\n`;
+  days.forEach(d=>t+=`${d.date.slice(5)} ${r0(d.tmin)}–${r0(d.tmax)}°C${d.rain?' 有雨':''}（${d.src}）\n`);
+  secs.forEach(([name,a],si)=>{t+=`\n【${name}】\n`;a.forEach(([k,v])=>t+=`${mark[si+':'+k]?'[x]':'[ ]'} ${k} ${v}\n`)});
+  return t;
+}
+['#g','#a'].forEach(x=>$(x).addEventListener('change',()=>{if(last)render(last.p,last.days)}));
+</script>
+</body>
+</html>
