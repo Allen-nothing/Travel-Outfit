@@ -92,7 +92,7 @@ main{position:relative;z-index:1}
 <p class="sub">輸入目的地、出發日期與停留天數，依當地天氣預報（或去年同期氣候）建議每日穿搭與行李數量。</p>
 
 <form class="card" id="f">
-  <label>目的地（全球城市，中英文皆可）<input id="q" required placeholder="例：東京、Reykjavik、Singapore"></label>
+  <label>目的地（城市或機場 IATA 代碼，中英文皆可）<input id="q" required placeholder="例：東京、Reykjavik、TPE"></label>
   <label>出發日期<input id="d" type="date" required></label>
   <label>停留天數<input id="n" type="number" min="1" max="30" value="5" required></label>
   <label>穿搭風格<select id="g"><option value="n">不指定</option><option value="m">男裝</option><option value="f">女裝</option></select></label>
@@ -126,6 +126,21 @@ async function geo(name){
   const all=(await r.json()).results||[],ok=all.filter(x=>!/^(AIR|HLP)/.test(x.feature_code||''));
   return ok.length?ok:all;
 }
+const EN2TC={'Taiwan':'台灣','Japan':'日本','South Korea':'韓國','China':'中國','Hong Kong':'香港','Macau':'澳門','Singapore':'新加坡','Thailand':'泰國','Vietnam':'越南','Malaysia':'馬來西亞','Indonesia':'印尼','Philippines':'菲律賓','United States':'美國','United Kingdom':'英國','France':'法國','Germany':'德國','Italy':'義大利','Spain':'西班牙','Australia':'澳洲','New Zealand':'紐西蘭','Canada':'加拿大','Switzerland':'瑞士','United Arab Emirates':'阿拉伯聯合大公國','Iceland':'冰島','Turkey':'土耳其'};
+let APT=null;
+function csvLine(l){const o=[];let c='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(l[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===','){o.push(c);c=''}else c+=ch}o.push(c);return o}
+async function airportByIata(code){
+  if(!APT){
+    const r=await fetch('https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat');
+    if(!r.ok)throw new Error(r.status);
+    APT=new Map();
+    (await r.text()).split('\n').forEach(l=>{const f=csvLine(l);if(f.length>=13&&/^[A-Z]{3}$/.test(f[4])&&f[12]==='airport')APT.set(f[4],f)});
+  }
+  const f=APT.get(code);if(!f)return [];
+  const iata=f[4],ctry=EN2TC[f[3]]||f[3];
+  return [{name:f[1],latitude:+f[6],longitude:+f[7],elevation:+f[8]*0.3048,iata,
+    lbl:`${f[2]}｜${f[1]}（${iata}），${ctry}`}];
+}
 const TWK=new Set(['台北','新北','桃園','台中','台南','高雄','新竹','基隆','嘉義','宜蘭','花蓮','台東','墾丁','阿里山','日月潭','澎湖','金門','屏東','苗栗','彰化','南投','雲林']);
 async function searchPlaces(raw){
   const q=raw.replace(/臺/g,'台').replace(/\s+/g,' ').trim(),bare=q.replace(/[市縣县]$/,'');
@@ -151,7 +166,9 @@ $('#f').addEventListener('submit',async e=>{
   }
   msg.textContent='搜尋地點中…';
   try{
-    places=await searchPlaces(raw);
+    places=[];
+    if(/^[A-Za-z]{3}$/.test(raw)){try{places=await airportByIata(raw.toUpperCase())}catch(e){}}
+    if(!places.length)places=await searchPlaces(raw);
     if(!places.length){msg.textContent='找不到這個地點，請試試城市名稱（例如「台北」、「Taipei」）或加上國家。';return}
     picked=0;renderChips();await plan();
   }catch(err){msg.textContent='無法連線到天氣服務，請檢查網路後再試。'}
@@ -163,6 +180,7 @@ function renderChips(){
 }
 const CTC={TW:'台灣',HK:'香港',MO:'澳門',JP:'日本',KR:'韓國',CN:'中國',US:'美國',GB:'英國',FR:'法國',DE:'德國',IT:'義大利',ES:'西班牙',TH:'泰國',VN:'越南',SG:'新加坡',MY:'馬來西亞',ID:'印尼',PH:'菲律賓',AU:'澳洲',NZ:'紐西蘭',CA:'加拿大',CH:'瑞士',AE:'阿拉伯聯合大公國',IS:'冰島',TR:'土耳其'};
 const label=p=>{
+  if(p.lbl)return p.lbl;
   const tw=p.country_code==='TW';
   const adm=tw?'':(p.admin1||'').split(' or ')[0];
   return [p.name,adm,CTC[p.country_code]||p.country].filter((v,i,a)=>v&&a.indexOf(v)===i).join('，');
