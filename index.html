@@ -83,6 +83,14 @@ main{position:relative;z-index:1}
 .maplinks{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 16px;font-size:.88rem;color:var(--mute)}
 .maplinks a{color:var(--accent)}
 @media print{.mapcard{display:none}}
+.clocks{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.clocks[hidden]{display:none}
+.clk{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.clk .k{font-size:.85rem;color:var(--mute)}
+.clk .t{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.02em;line-height:1.3}
+.clk .d{font-size:.9rem;color:var(--mute)}
+.clk-diff{grid-column:1/-1;margin:0;padding:10px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px;font-weight:600}
+@media (max-width:640px){.clocks{grid-template-columns:1fr}.clk .t{font-size:1.6rem}}
 </style>
 </head>
 <body>
@@ -101,6 +109,7 @@ main{position:relative;z-index:1}
 </form>
 <div id="chips" class="chips" role="group" aria-label="地點搜尋結果"></div>
 <div id="msg" role="status"></div>
+<div id="clocks" class="clocks" hidden></div>
 <div id="out"></div>
 
 <p class="note">天氣資料來自 Open-Meteo。預報涵蓋未來約 7 天；更遠的日期以去年同期的實際天氣作參考，準確度較低。</p>
@@ -156,7 +165,7 @@ async function searchPlaces(raw){
 $('#f').addEventListener('submit',async e=>{
   e.preventDefault();
   const msg=$('#msg'),raw=$('#q').value.trim().replace(/臺/g,'台');
-  $('#out').innerHTML='';$('#chips').innerHTML='';last=null;
+  $('#out').innerHTML='';$('#chips').innerHTML='';last=null;$('#clocks').hidden=true;clearInterval(clkT);
   const grp=GROUPS[raw.toLowerCase()];
   if(grp){
     msg.textContent=`「${raw}」是國家／地區，請選擇城市：`;
@@ -200,13 +209,13 @@ async function plan(){
     const base=`latitude=${p.latitude}&longitude=${p.longitude}&timezone=auto&daily=`;
     if(fc.length){
       const j=await getJSON(`https://api.open-meteo.com/v1/forecast?${base}${DAILY},precipitation_probability_max,uv_index_max&start_date=${fc[0]}&end_date=${fc[fc.length-1]}`);
-      fc.forEach((d,i)=>days.push(row(d,j.daily,i,'預報')));
+      p.tz=j.timezone;fc.forEach((d,i)=>days.push(row(d,j.daily,i,'預報')));
     }
     if(hist.length){
       const j=await getJSON(`https://archive-api.open-meteo.com/v1/archive?${base}${DAILY}&start_date=${prevYear(hist[0])}&end_date=${prevYear(hist[hist.length-1])}`);
-      hist.forEach((d,i)=>days.push(row(d,j.daily,i,'去年同期')));
+      p.tz=j.timezone;hist.forEach((d,i)=>days.push(row(d,j.daily,i,'去年同期')));
     }
-    msg.textContent='';render(p,days);
+    msg.textContent='';render(p,days);startClocks(p,days[0].date);
   }catch(err){msg.textContent='天氣資料取得失敗，請稍後再試。'}
 }
 function row(date,D,i,src){
@@ -371,6 +380,29 @@ function scene(k){
 }
 function setBg(k){const b=$('#bg');b.className='w-'+k;b.innerHTML=scene(k)}
 setBg('clear');
+
+let clkT=null;
+const HK='Asia/Hong_Kong';
+const offMin=(tz,d)=>{const f=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});return(Date.UTC(f.year,f.month-1,f.day,f.hour,f.minute,f.second)-Math.floor(d/1000)*1000)/60000};
+const offLbl=m=>'UTC'+(m<0?'−':'+')+Math.floor(Math.abs(m)/60)+(Math.abs(m)%60?':'+String(Math.abs(m)%60).padStart(2,'0'):'');
+const hm=m=>`${Math.floor(m/60)} 小時${m%60?` ${m%60} 分`:''}`;
+const fmtT=(tz,d)=>new Intl.DateTimeFormat('en-GB',{timeZone:tz,hourCycle:'h23',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(d);
+const fmtD=(tz,d)=>new Intl.DateTimeFormat('zh-TW',{timeZone:tz,month:'long',day:'numeric',weekday:'short'}).format(d);
+function startClocks(p,start){
+  const el=$('#clocks'),tz=p.tz||p.timezone;
+  clearInterval(clkT);
+  if(!tz){el.hidden=true;return}
+  try{
+    const now=new Date(),ref=new Date(start+'T12:00:00Z'),dm=offMin(tz,ref)-offMin(HK,ref),nowDm=offMin(tz,now)-offMin(HK,now);
+    const txt=dm===0?'與香港時間相同':`目的地比香港${dm>0?'快':'慢'} ${hm(Math.abs(dm))}`;
+    el.innerHTML=`<div class="clk"><div class="k">香港（UTC+8）</div><div class="t" id="tHK"></div><div class="d" id="dHK"></div></div>
+<div class="clk"><div class="k">${esc(p.name)}（${offLbl(offMin(tz,now))}）</div><div class="t" id="tDest"></div><div class="d" id="dDest"></div></div>
+<p class="clk-diff">⏱ ${txt}<span style="font-weight:400;color:var(--mute)">（以出發日 ${start} 計算${nowDm!==dm?'；與現在不同是因日光節約時間':''}）</span></p>`;
+    el.hidden=false;
+    const tick=()=>{const n=new Date();$('#tHK').textContent=fmtT(HK,n);$('#dHK').textContent=fmtD(HK,n);$('#tDest').textContent=fmtT(tz,n);$('#dDest').textContent=fmtD(tz,n)};
+    tick();clkT=setInterval(tick,1000);
+  }catch(e){el.hidden=true}
+}
 </script>
 </body>
 </html>
